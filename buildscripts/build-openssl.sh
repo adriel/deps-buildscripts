@@ -2,13 +2,6 @@
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
-# OpenSSL provides the TLS backend for FFmpeg. Apple's SecureTransport (the
-# previous backend) is deprecated and only supports up to TLS 1.2, so https
-# servers that require TLS 1.3 could not be opened.
-#
-# Only static libraries are built. They are linked into libavformat, so no
-# extra dylibs have to be bundled with IINA.
-
 DEP_NAME="openssl"
 VERSION="${OPENSSL_VERSION}"
 TARBALL="${DEP_NAME}-${VERSION}.tar.gz"
@@ -29,30 +22,21 @@ build_for_arch() {
     log_step "=== ${DEP_NAME} ${VERSION} — ${arch} ==="
     setup_arch_env "$arch"
 
-    # OpenSSL does not support out-of-tree builds for every target, so work on
-    # a per-arch copy of the source tree.
     rm -rf "$build_dir" && mkdir -p "$(dirname "$build_dir")"
     cp -R "$SRC_DIR" "$build_dir"
     cd "$build_dir"
 
-    # Configure picks up CFLAGS/LDFLAGS (arch, deployment target, sysroot) from
-    # the environment set by setup_arch_env.
-    #
-    # --openssldir=/etc/ssl makes the default CA bundle /etc/ssl/cert.pem,
-    # which ships with macOS, so certificate verification works out of the box
-    # when mpv's tls-verify is enabled.
     ./Configure "$target" \
         --prefix="$prefix" \
         --libdir=lib \
         --openssldir=/etc/ssl \
-        no-shared \
+        shared \
         no-tests \
         no-apps \
-        no-docs \
-        -fPIC
+        no-docs
 
-    make -j"$JOBS" build_libs
-    make install_dev
+    make -j"$JOBS"
+    make install_sw
 }
 
 download_and_verify "$OPENSSL_URL" "$OPENSSL_SHA256" "$TARBALL"
